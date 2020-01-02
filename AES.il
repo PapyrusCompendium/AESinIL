@@ -49,7 +49,7 @@
 
         .method public hidebysig specialname instance void .ctor() cil managed
         {
-            .maxstack 8
+            .maxstack 1
             ldarg.0
             call        instance void [mscorlib]System.Object::.ctor()
             ret
@@ -93,13 +93,11 @@
         .method public hidebysig static uint8[] Decrypt(uint8[] data, string password, [opt] int32 keySize) cil managed
         {
             .param[3] = int32(256)
-            .maxstack 5
+            .maxstack 8
             .locals init(
                 [0] class [System.Core]System.Security.Cryptography.AesCryptoServiceProvider,
-                [1] class [mscorlib]System.Security.Cryptography.ICryptoTransform,
-                [2] class [mscorlib]System.IO.MemoryStream,
-                [3] class [mscorlib]System.Security.Cryptography.CryptoStream,
-                [4] uint8[] //This is our "StrippedData" byte[]
+                [1] uint8[], //This is our "StrippedData" byte[]
+                [2] uint8[] //This is the returned data array.
             )
             
             newobj      instance void [System.Core]System.Security.Cryptography.AesCryptoServiceProvider::.ctor()
@@ -117,79 +115,92 @@
             ldarg.2     //This is the keysize as defined in the invocation of the method, argument 1.
             callvirt    instance void [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::set_KeySize(int32)
             
+            ldc.i4.s 16
+            newarr      [mscorlib]System.Byte
+            stloc.1
+
             ldarg.0     //Originally I had used linq here, however linq looks like a mess in IL.
             ldc.i4.0    //Load 4 byte integer, constant of 0.
-                        //Our destination array is the Init Vector of our AesCryptoServiceProvider.
-            callvirt    instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
+            ldloc.0     //Our destination array is the Init Vector of our AesCryptoServiceProvider.
+            ldloc.1     //Destination.
 
             ldc.i4.0
             ldc.i4.s 16 //Copy the first 16 bytes from the cipher text, into the Init Vector.
             call        void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
 
-            ldarg.0
+            ldloc.0     //Set the IV in our AesCryptoServiceProvider
+            ldloc.1
+            callvirt    instance void [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::set_IV(uint8[])
+
+            ldarg.0     //length of the cipher text.
             ldlen
             conv.i4     //Convert the length to a 4 byte integer.
+
             ldc.i4.s 16
             sub         //Subtract 16 from the length of the cipher text data, and create a new array of this length.
             newarr      [mscorlib]System.Byte
-            stloc.s 4   //Assign the value to our locals.
+            stloc.1     //Re-assign the value to our locals.
 
             ldarg.0     //The data we are copying from.
-            ldc.i4.s 16
-            ldloc.s 4   //Destination array.
+            ldc.i4.s 16 //Source Offset.
+            ldloc.1     //Destination array.
             ldc.i4.0    //Destination offset.
 
-            ldloc.s 4   //Length bytes to copy from the data[] to our destination array.
+            ldloc.1     //Length bytes to copy from the data[] to our destination array.
             ldlen
             conv.i4
+
             call        void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
 
-            ldloc.0
-            ldarg.1     //Push the stack with our password.
-            ldc.i4.0    //The size of our byte array(0), argument 0.
-            newarr [mscorlib]System.Byte
+            ldloc.0     //CryptoProvider instance.
+            ldarg.1     //Our password.
+            ldc.i4.0    //The size of our byte array(0).
+            newarr      [mscorlib]System.Byte
                         //Create a new byte array, push the stack.
             newobj      instance void [mscorlib]System.Security.Cryptography.PasswordDeriveBytes::.ctor(string, uint8[])
 
             ldarg.2     //Key size
             ldc.i4.8
             div         //Keysize divided by 8
-            callvirt instance uint8[] [mscorlib]System.Security.Cryptography.DeriveBytes::GetBytes(int32)
+            callvirt    instance uint8[] [mscorlib]System.Security.Cryptography.DeriveBytes::GetBytes(int32)
                         //Load (Keysize / 8) bytes onto the stack, from PasswordDeriveBytes.
                         //Then with our last stacked object, AesCryptoServiceProvider, call set_Key
-            callvirt instance void [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::set_Key(uint8[])
+            callvirt    instance void [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::set_Key(uint8[])
 
-            ldloc.0     //Construct our ICryptoStream.
-            callvirt    instance class [mscorlib]System.Security.Cryptography.ICryptoTransform [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::CreateDecryptor()
-            stloc.1     //Save to local [1].
-
-            ldloc.s 4     //Create a new memory stream from our encrypted data[].
+            ldloc.1     //Create a new memory stream from our encrypted data[].
             newobj      instance void [mscorlib]System.IO.MemoryStream::.ctor(uint8[])
-            stloc.2
+                        //Memory Stream is only being used once, do not make a local variable.
 
-            ldloc.2
-            ldloc.1
-            ldc.i4.0    //Create our CryptoStream with read mode, MemoryStream, ICryptoStream, int32
+            ldloc.0     //Construct our ICryptoTransform.
+            callvirt    instance class [mscorlib]System.Security.Cryptography.ICryptoTransform [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::CreateDecryptor()
+                        //We are only using the CryptoTranform here, do not need a local variable.
+            ldc.i4.0    //Create our CryptoStream with read mode, MemoryStream, ICryptoTransform, int32
             newobj      instance void [mscorlib]System.Security.Cryptography.CryptoStream::.ctor(class [mscorlib]System.IO.Stream, class [mscorlib]System.Security.Cryptography.ICryptoTransform, valuetype [mscorlib]System.Security.Cryptography.CryptoStreamMode)
-            stloc.3
+                        //Crypto Stream is only being used here, do not need a local variable.
+                        
+            ldloc.1     //Destination array.
+            ldc.i4.0    //Offset.
 
-            ldloc.3     //Our CryptoStream instance.
-            ldloc.s 4   //Desination array.
-            ldc.i4.0
-
-            ldloc.s 4
+            ldloc.1
             ldlen
             conv.i4     //Number of bytes to read.
+            
             callvirt    instance int32 [mscorlib]System.IO.Stream::Read(uint8[], int32, int32)
-            pop         //Pop off the 4 byte integer that Read stacks. (bytes read)
+            newarr      [mscorlib]System.Byte
+            stloc.2     //Create byte[] with the size of the number of bytes read.
 
-            ldloc.2     //Dipose our memory stream.
-            callvirt instance void [mscorlib]System.IDisposable::Dispose()
+            ldloc.1     //The source array. 
+            ldc.i4.0    //Offset.
+            ldloc.2     //Destination Array.
+            ldc.i4.0    //Offset.
 
-            ldloc.3     //Dispose our crypto stream.
-            callvirt instance void [mscorlib]System.IDisposable::Dispose()
+            ldloc.2     //Number of bytes to copy.
+            ldlen
+            conv.i4
+                        //Copy over the number of bytes read from the crypto stream, when decrypting.
+            call        void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
 
-            ldloc.s 4
+            ldloc.2
             ret         //return the decrypted data.
         }
         
@@ -226,29 +237,29 @@
             ldloc.0
             ldarg.1     //Push the stack with our password.
             ldc.i4.0    //The size of our byte array(0), argument 0.
-            newarr [mscorlib]System.Byte
+            newarr      [mscorlib]System.Byte
                         //Create a new byte array, push the stack.
-            newobj instance void [mscorlib]System.Security.Cryptography.PasswordDeriveBytes::.ctor(string, uint8[])
+            newobj      instance void [mscorlib]System.Security.Cryptography.PasswordDeriveBytes::.ctor(string, uint8[])
 
             ldarg.2     //Key size
             ldc.i4.8
             div         //Keysize divided by 8
-            callvirt instance uint8[] [mscorlib]System.Security.Cryptography.DeriveBytes::GetBytes(int32)
+            callvirt     instance uint8[] [mscorlib]System.Security.Cryptography.DeriveBytes::GetBytes(int32)
                         //Load (Keysize / 8) bytes onto the stack, from PasswordDeriveBytes.
                         //Then with our last stacked object, AesCryptoServiceProvider, call set_Key
-            callvirt instance void [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::set_Key(uint8[])
+            callvirt    instance void [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::set_Key(uint8[])
 
             ldloc.0
-            callvirt instance class [mscorlib]System.Security.Cryptography.ICryptoTransform [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::CreateEncryptor()
+            callvirt    instance class [mscorlib]System.Security.Cryptography.ICryptoTransform [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::CreateEncryptor()
             stloc.1     //Pop the stack, and load a value into local 1. (ICryptoTransform)
 
-            newobj instance void [mscorlib]System.IO.MemoryStream::.ctor()
+            newobj      instance void [mscorlib]System.IO.MemoryStream::.ctor()
             stloc.2     //Pop the stack, and load a value into local 2. (MemoryStream)
 
             ldloc.2     //Load our MemoryStream.
             ldloc.1     //Load our ICryptoTransform.
             ldc.i4.1    //CryptoStreamMode.Write(1).
-            newobj instance void [mscorlib]System.Security.Cryptography.CryptoStream::.ctor(class [mscorlib]System.IO.Stream, class [mscorlib]System.Security.Cryptography.ICryptoTransform, valuetype [mscorlib]System.Security.Cryptography.CryptoStreamMode)
+            newobj      instance void [mscorlib]System.Security.Cryptography.CryptoStream::.ctor(class [mscorlib]System.IO.Stream, class [mscorlib]System.Security.Cryptography.ICryptoTransform, valuetype [mscorlib]System.Security.Cryptography.CryptoStreamMode)
             stloc.3     //Pop the stack, and load a value into local 3. (CryptoStream)
 
             ldloc.3     //Load the writer instance to top of the stack.
@@ -258,58 +269,58 @@
             ldarg.0 
             ldlen       //Load the length of our data.
             conv.i4     //Convert the returned length to int32.
-            callvirt instance void [mscorlib]System.IO.Stream::Write(uint8[], int32, int32)
+            callvirt    instance void [mscorlib]System.IO.Stream::Write(uint8[], int32, int32)
 
             ldloc.3     //Flush our CryptoStream.
-            callvirt instance void [mscorlib]System.Security.Cryptography.CryptoStream::FlushFinalBlock()
+            callvirt    instance void [mscorlib]System.Security.Cryptography.CryptoStream::FlushFinalBlock()
 
             ldloc.2     //Get the length of our MemoryStream.
-            callvirt instance int64 [mscorlib]System.IO.Stream::get_Length()
+            callvirt    instance int64 [mscorlib]System.IO.Stream::get_Length()
 
             ldc.i8 16   //Our AES Blocksize / 8 = 16 (Load as int64)
             add         //Add our MemoryStream.Length and 16
             conv.ovf.i  //Convert our two added int64's to native int (int32 in this case).
 
-            newarr [mscorlib]System.Byte
+            newarr      [mscorlib]System.Byte
                         //Create a new, empty, byte array of our IV and encrypted Data Length.
             stloc.s 4   //Pop the stack and load the empty byte array into local 4.
 
             ldloc.0     //Load our IV[] onto the stack.
-            callvirt instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
+            callvirt    instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
 
             ldc.i4.0    //Load constant 0.
             ldloc.s 4   //Load our empty byte[], this is the destination array argument.
             ldc.i4.0
 
             ldloc.0     //Load our CryptoProvider, and get the IV length.
-            callvirt instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
+            callvirt    instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
             ldlen       //Push the length.
             conv.i4     //Convert the length to int32
                         //Copy the IV from our CryptoProvider to our destination array.
-            call void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
+            call        void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
 
             ldloc.2     //Convert our MemoryStream to an array, and load onto the stack.
-            callvirt instance uint8[] [mscorlib]System.IO.MemoryStream::ToArray()
+            callvirt    instance uint8[] [mscorlib]System.IO.MemoryStream::ToArray()
 
             ldc.i4.0    //Load constant 0.
             ldloc.s 4   //this is the destination array argument.
 
             ldloc.0     //Load our CryptoProvider, and get the IV length.
-            callvirt instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
+            callvirt    instance uint8[] [mscorlib]System.Security.Cryptography.SymmetricAlgorithm::get_IV()
             ldlen       //Push the length.
             conv.i4     //Convert the length to int32
 
             ldloc.2
-            callvirt instance uint8[] [mscorlib]System.IO.MemoryStream::ToArray()
+            callvirt    instance uint8[] [mscorlib]System.IO.MemoryStream::ToArray()
             ldlen
             conv.i4 
                         //Copy the encrypted bytes from our MemoryStream to our destination array. Start after the IV length.
-            call void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
+            call        void [mscorlib]System.Buffer::BlockCopy(class [mscorlib]System.Array, int32, class [mscorlib]System.Array, int32, int32)
 
             ldloc.3     //Dispose of the CryptoStream.
-            callvirt instance void [mscorlib]System.IDisposable::Dispose()
+            callvirt    instance void [mscorlib]System.IDisposable::Dispose()
             ldloc.2     //Dispose of the MemoryStream.
-            callvirt instance void [mscorlib]System.IDisposable::Dispose()
+            callvirt    instance void [mscorlib]System.IDisposable::Dispose()
 
             ldloc.s 4
             ret         //Return our destination array.
