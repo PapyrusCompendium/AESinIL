@@ -58,7 +58,7 @@
 
     .class public auto ansi beforefieldinit Cryptography
     {
-                .method public hidebysig static void RoundTrip(string data, string password) cil managed
+    	.method public hidebysig static void RoundTrip(string data, string password) cil managed
         {
             .maxstack 4
             .locals init(
