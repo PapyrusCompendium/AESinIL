@@ -58,7 +58,7 @@
 
     .class public auto ansi beforefieldinit Cryptography
     {
-        .method public hidebysig static void RoundTrip(string data, string password) cil managed
+                .method public hidebysig static void RoundTrip(string data, string password) cil managed
         {
             .maxstack 4
             .locals init(
@@ -71,7 +71,7 @@
 
             ldarg.1     //Encrypt the data[] using the password from the user.
             ldc.i4 256
-            call        uint8[] AESinIL.Cryptography::Encrypt(uint8[], string, int32)
+            call        uint8[] ConsoleApplication1.Program::Encrypt(uint8[], string, int32)
             stloc.0     //Save this byte array for later use.
 
             ldloc.0     //Outout the encrypted data to the user.
@@ -79,10 +79,11 @@
             call        void [mscorlib]System.Console::WriteLine(string)
 
             call        class [mscorlib]System.Text.Encoding [mscorlib]System.Text.Encoding::get_UTF8()
+
             ldloc.0
             ldarg.1
             ldc.i4 256
-            call        uint8[] AESinIL.Cryptography::Decrypt(uint8[], string, int32)
+            call        uint8[] ConsoleApplication1.Program::Decrypt(uint8[], string, int32)
                         //Convert our byte[] back into a string.
 
             callvirt    instance string [mscorlib]System.Text.Encoding::GetString(uint8[])
@@ -121,7 +122,6 @@
 
             ldarg.0     //Originally I had used linq here, however linq looks like a mess in IL.
             ldc.i4.0    //Load 4 byte integer, constant of 0.
-            ldloc.0     //Our destination array is the Init Vector of our AesCryptoServiceProvider.
             ldloc.1     //Destination.
 
             ldc.i4.0
