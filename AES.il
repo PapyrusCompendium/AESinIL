@@ -71,7 +71,7 @@
 
             ldarg.1     //Encrypt the data[] using the password from the user.
             ldc.i4 256
-            call        uint8[] Cryptography::Encrypt(uint8[], string, int32)
+            call        uint8[] AESinIL.Cryptography::Encrypt(uint8[], string, int32)
             stloc.0     //Save this byte array for later use.
 
             ldloc.0     //Outout the encrypted data to the user.
@@ -83,7 +83,7 @@
             ldloc.0
             ldarg.1
             ldc.i4 256
-            call        uint8[] Cryptography::Decrypt(uint8[], string, int32)
+            call        uint8[] AESinIL.Cryptography::Decrypt(uint8[], string, int32)
                         //Convert our byte[] back into a string.
 
             callvirt    instance string [mscorlib]System.Text.Encoding::GetString(uint8[])
